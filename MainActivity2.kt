@@ -3,6 +3,7 @@ package com.example.myapplication
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Geocoder
@@ -21,6 +22,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.util.Locale
@@ -55,6 +57,9 @@ class MainActivity2 : AppCompatActivity() {
 
 
 
+        if (intent?.action == "SHOW_NOTIFICATION") {
+            showScheduledNotification()
+        }
 
         val hotel1 = findViewById<Button>(R.id.hotel1)
         val hotel2 = findViewById<Button>(R.id.hotel2)
@@ -91,6 +96,8 @@ class MainActivity2 : AppCompatActivity() {
         when (item.itemId) {
             R.id.notification -> {
                 Toast.makeText(this, "Notification ON", Toast.LENGTH_SHORT).show()
+                showDateTimePicker()
+                return true
             }
 
             R.id.settings -> {
@@ -153,6 +160,69 @@ class MainActivity2 : AppCompatActivity() {
             null
         }
     }
+    private fun showScheduledNotification() {
+        val channelId = "scheduled_notification"
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Scheduled Notifications",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val builder = NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Reminder!")
+            .setContentText("It's time for your scheduled event.")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setAutoCancel(true)
+
+        notificationManager.notify(999, builder.build())
+    }
+
+    private fun showDateTimePicker() {
+        val calendar = java.util.Calendar.getInstance()
+
+        val datePicker = android.app.DatePickerDialog(
+            this,
+            { _, year, month, dayOfMonth ->
+                val timePicker = android.app.TimePickerDialog(
+                    this,
+                    { _, hourOfDay, minute ->
+                        calendar.set(year, month, dayOfMonth, hourOfDay, minute, 0)
+                        scheduleNotification(calendar.timeInMillis)
+                    },
+                    calendar.get(java.util.Calendar.HOUR_OF_DAY),
+                    calendar.get(java.util.Calendar.MINUTE),
+                    true
+                )
+                timePicker.show()
+            },
+            calendar.get(java.util.Calendar.YEAR),
+            calendar.get(java.util.Calendar.MONTH),
+            calendar.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+        datePicker.show()
+    }
+
+    private fun scheduleNotification(timeInMillis: Long) {
+        val intent = Intent(this, MainActivity2::class.java)
+        intent.action = "SHOW_NOTIFICATION"
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val alarmManager = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
+        alarmManager.setExact(android.app.AlarmManager.RTC_WAKEUP, timeInMillis, pendingIntent)
+
+        Toast.makeText(this, "Notification Scheduled", Toast.LENGTH_SHORT).show()
+    }
+
 
     private fun handleHotelBooking(hotelKey: String) {
         val isBooked = sharedPreferences.getBoolean(hotelKey, false)
@@ -189,7 +259,7 @@ class MainActivity2 : AppCompatActivity() {
             )
         }
 
-        val builder = Notification.Builder(this, channelId)
+        val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Hotel Booked!")
             .setContentText("$hotelName is successfully booked.")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
